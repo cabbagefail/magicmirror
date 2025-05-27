@@ -1,0 +1,2 @@
+# magicmirror
+mirror for RPi
