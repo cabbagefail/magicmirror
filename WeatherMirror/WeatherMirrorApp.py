@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import requests
 import random
-from PIL import Image
-import tkinter as tk
-from tkinter import filedialog
+# from PIL import Image
+# import tkinter as tk
+# from tkinter import filedialog
 import math
 
 # 天气API配置（需要去OpenWeatherMap注册免费API key）
@@ -18,7 +18,7 @@ CLOUDS = 5        # 云朵数量
 
 RAINY_INTENSITY = 0.4   # 降雨强度
 RAINY_WINDFORCE = 0.1
-DROPS = 300
+DROPS = 400
 
 MAX_RAINY_INTENSITY = 0.8   # 降雨强度
 MAX_RAINY_WINDFORCE = 0.2
@@ -49,6 +49,7 @@ class WeatherEffects:
 """
 class RainyEffects():
     def __init__(self, cap, is_thunder = False):
+        print("****rainy_init****")
         self.cap = cap
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
         self.is_thunder = is_thunder
@@ -81,8 +82,11 @@ class RainyEffects():
         # 闪电系统参数
         if self.is_thunder:
             self.lightning_img = cv2.imread('src/image/thunder_2.png', cv2.IMREAD_UNCHANGED)
+            self.lightning_img1 = cv2.imread('src/image/thunder_2.png', cv2.IMREAD_UNCHANGED)
             if self.lightning_img is None:
-                raise FileNotFoundError("闪电图片加载失败")
+                print("图片加载失败")
+            if self.lightning_img1 is None:
+                print("图片1加载失败")
             self._init_lightning_system()
 
     def _init_rain_drops(self):
@@ -109,17 +113,21 @@ class RainyEffects():
         
         # 预生成不同形态闪电
         self.preprocessed_lightnings = [
-            self._preprocess_lightning(angle=0, scale=1.0),
-            self._preprocess_lightning(angle=15, scale=0.9),
-            self._preprocess_lightning(angle=-15, scale=1.1)
+            self._preprocess_lightning(self.lightning_img, angle=0, scale=1.0),
+            self._preprocess_lightning(self.lightning_img, angle=15, scale=0.9),
+            self._preprocess_lightning(self.lightning_img, angle=-15, scale=1.1),
+
+            self._preprocess_lightning(self.lightning_img1, angle=0, scale=1.0),
+            self._preprocess_lightning(self.lightning_img1, angle=15, scale=0.9),
+            self._preprocess_lightning(self.lightning_img1, angle=-15, scale=1.1),
         ]
 
-    def _preprocess_lightning(self, angle=0, scale=1.0):
+    def _preprocess_lightning(self, img, angle=0, scale=1.0):
         """预处理闪电素材"""
-        rows, cols = self.lightning_img.shape[:2]
+        rows, cols = img.shape[:2]
         M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, scale)
         rotated = cv2.warpAffine(
-            self.lightning_img, M, (cols, rows),
+            img, M, (cols, rows),
             flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, 
             borderValue=(0,0,0,0)
         )
@@ -264,7 +272,7 @@ class SnowyEffects:
     def __init__(self, cap):
         self.cap = cap
         # self.cap = cv2.VideoCapture(0)
-        print("****snow_init****")
+        print("****snowy_init****")
         # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
         # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
@@ -289,9 +297,9 @@ class SnowyEffects:
             for _ in range(SNOWFLAKES):
                 self.snowflakes.append({
                     'pos': [random.randint(-self.w, self.w*2), random.randint(-self.h, 0)],
-                    'speed': random.uniform(30, 50),
+                    'speed': random.uniform(5, 25),
                     'scale': random.uniform(0.01, 0.03),
-                    'drift': random.uniform(-0.5, 0.5)
+                    'drift': random.uniform(5, 10)
                 })
 
         # 更新并绘制每个雪花
@@ -316,9 +324,9 @@ class SnowyEffects:
                     random.randint(-self.w, self.w*2),
                     random.randint(-self.h, 0)
                 ]
-                flake['speed'] = random.uniform(5, 25)
-                flake['scale'] = random.uniform(0.01, 0.03)
-                flake['drift'] = random.uniform(-0.5, 0.5)
+                # flake['speed'] = random.uniform(5, 25)
+                # flake['scale'] = random.uniform(0.01, 0.03)
+                # flake['drift'] = random.uniform(10, 15)
 
         return frame
     
@@ -368,7 +376,7 @@ class SunnyEffects:
         
         # 特效参数
         self.glow_phase = 0.0
-        self.sun_pos = (int(0.2*self.w), int(0.1*self.h))
+        self.sun_pos = (int(0.2*self.w), int(0.15*self.h))
         self.ray_particles = self._init_ray_particles()
 
     def _init_ray_particles(self):
@@ -480,7 +488,7 @@ class CloudyEffects:
     def __init__(self, cap):
         self.cap = cap
         # self.cap = cv2.VideoCapture(0)
-        print("cloudy_init")
+        print("****cloudy_init****")
         # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
         # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
@@ -528,7 +536,7 @@ def main():
     # 获取天气信息
     city = "Shenzhen"
     # weather = get_weather(city)
-    weather = 'thunderrain'
+    weather = 'rain'
     print(weather)
     
     # 初始化背景
