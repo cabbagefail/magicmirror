@@ -536,7 +536,7 @@ def main():
     # 获取天气信息
     city = "Shenzhen"
     # weather = get_weather(city)
-    weather = 'rain'
+    weather = 'clouds'
     print(weather)
     
     # 初始化背景
