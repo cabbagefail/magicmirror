@@ -190,12 +190,12 @@ class RainyEffects():
             roi[:, :, c] = (alpha * bgr_lightning[:, :, c] + 
                           inv_alpha * roi[:, :, c]).astype(np.uint8)
 
-    def add_effects(self):
-        """主效果合成方法"""
+    def add_effects(self, frame):
+        """主效果合成方法
         ret, frame = self.cap.read()
         if not ret:
             return None
-            
+        """    
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         overlay = np.zeros_like(frame)
 
@@ -246,11 +246,12 @@ class SnowyEffects:
         # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
 
-    def add_effects(self):
+    def add_effects(self, frame):
+        """
         ret, frame = self.cap.read()
         if not ret:
             return None
-        
+        """
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
@@ -428,11 +429,12 @@ class SunnyEffects:
             x_start:x_start+cloud_w] = blended.astype(np.uint8)
 
 
-    def add_effects(self):
+    def add_effects(self, frame):
+        """
         ret, frame = self.cap.read()
         if not ret:
             return None
-        
+        """
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         
@@ -462,10 +464,13 @@ class CloudyEffects:
         # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
 
-    def add_effects(self):
+    def add_effects(self, frame):
+        """
         ret, frame = self.cap.read()
         if not ret:
             return None
-        
+        """
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         """添加多云特效"""
+
+        return frame
