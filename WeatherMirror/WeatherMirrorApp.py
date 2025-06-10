@@ -3,6 +3,7 @@ import requests
 from AddWeather import RainyEffects, SnowyEffects, SunnyEffects, CloudyEffects
 import mediapipe as mp
 import numpy as np
+import time
 
 # 天气API配置（需要去OpenWeatherMap注册免费API key）
 API_KEY = "50412da7c54dec7293740f41cbc2c917"
@@ -44,9 +45,9 @@ def classify_expression(landmarks):
     eye_bottom = np.array([lm[145].x, lm[145].y])
     eye_open = np.linalg.norm(eye_top - eye_bottom)
 
-    # 默认表情参数：mouth_open=0.0006 mouth_width=0.095 eye_open=0.029 brow_eye_diff = -0.041
+    # 默认表情参数：mouth_open=0.0006 mouth_width=0.095 eye_open=0.029 brow_eye_diff=-0.041
     # print("mouth_width:" + str(mouth_width))# 生气参数：0.081
-    print("mouth_open:" + str(mouth_open) + " " + "eye_open:" + str(eye_open))# 哭泣参数：
+    print("mouth_open:" + str(mouth_open) + " " + "eye_open:" + str(eye_open))# 哭泣参数：0.06 0.008
     # print("mouth_open:" + str(mouth_open) + " " + "mouth_width:" + str(mouth_width))# 微笑参数：0.027 0.135
     # print("brow_eye_diff" + str(brow_eye_diff))# 悲伤参数：
 
@@ -62,27 +63,15 @@ def classify_expression(landmarks):
     else:
         return "默认"
     
-def facial_expression(cap, face_mesh):
-    # print("****facial_expression****")
-    ret, frame = cap.read()
-    if not ret:
-        print("failed to open cap")
-        return
-
-    # h, w, _ = frame.shape
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb)
+def facial_expression(frame, face_mesh):
+    results = face_mesh.process(frame)
 
     if results.multi_face_landmarks:
         for face_landmarks in results.multi_face_landmarks:
             expression = classify_expression(face_landmarks.landmark)
             print(expression)
-
-            # 在图像上标注表情
-            cv2.putText(frame, f'表情: {expression}', (30, 60), cv2.FONT_HERSHEY_SIMPLEX,
-                        1.2, (255, 255, 255), 3)
             
-    return frame
+    return expression
 
 # 入口函数
 def main():
@@ -92,10 +81,12 @@ def main():
     weather = 'thunderrain'
     print(weather)
 
+    # 开启摄像头
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
     
+    # 初始化天气特效类
     rain_effect = RainyEffects(cap)
     thunder_effect = RainyEffects(cap, True)
     snow_effect = SnowyEffects(cap)
@@ -109,10 +100,24 @@ def main():
     # Mediapipe 初始化
     mp_face_mesh = mp.solutions.face_mesh
     face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True)
+
+    # 控制调用频率的变量
+    last_check_time = 0
+    expression_check_interval = 3  # 每3秒检测一次表情
+    current_expression = None  # 缓存上次检测到的结果
     
     while True:
-        # frame = effect.background.copy()
-        frame = facial_expression(cap, face_mesh)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_raw = frame.copy()
+
+        current_time = time.time()
+        if current_time - last_check_time >= expression_check_interval:
+            current_expression = facial_expression(frame_raw, face_mesh)
+            last_check_time = current_time
+        print(current_expression)
         
         if weather == 'rain':
             frame = rain_effect.add_effects(frame)
