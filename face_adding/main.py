@@ -1,7 +1,9 @@
+import time
 import cv2
 import dlib
-import numpy as np
-from face_add_v1_2 import calculate_ear, apply_sticker, apply_whiskers
+from emotion_classifier import EmotionClassifier
+from face_add_v1_2 import (apply_sticker, apply_whiskers, calculate_ear, calculate_mar, calculate_lip_corner_angle,
+                           WeatherEffectSystem, calculate_eyebrow_angle, classify_emotion)
 
 # 初始化dlib的人脸检测器和关键点预测器
 detector = dlib.get_frontal_face_detector()
@@ -36,19 +38,6 @@ EAR_CONSEC_FRAMES = 4  # 连续几帧 EAR 小于阈值视为一次眨眼
 blink_counter = 0  # 眨眼帧计数器
 blink_history = []  # 存储眨眼的时间戳
 
-
-# 获取左眼中心点
-def left_eye_center():
-    left_eye_points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(36, 42)]
-    return np.mean(left_eye_points, axis=0).astype(int)
-
-
-# 获取右眼中心点
-def right_eye_center():
-    right_eye_points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(42, 48)]
-    return np.mean(right_eye_points, axis=0).astype(int)
-
-
 '''
 微笑检测参数
 '''
@@ -58,24 +47,31 @@ smile_counter = 0
 timeout_threshold = 3  # 超时时间设为3秒
 last_smile_time = 0  # 用于记录最后一次检测到微笑的时
 
+'''
+表情识别
+'''
+# 初始化表情分类器
+emotion_classifier = EmotionClassifier()
 
-# 获取嘴巴中心点
-def mouth_center():
-    mouth_points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(48, 68)]
-    return np.mean(mouth_points, axis=0).astype(int)
+# 新增表情锁定相关变量
+current_emotion_locked = None
+lock_start_time = None
+LOCK_DURATION = 5  # 锁定期持续时间（秒）
 
-
-# 计算嘴巴张开度（垂直距离/水平距离）
-def calculate_mar(mouth_points):
-    # 垂直距离：上唇下缘到下唇上缘
-    vertical_dist = np.linalg.norm(np.array(mouth_points[13]) - np.array(mouth_points[19]))
-    # 水平距离：嘴角左右距离
-    horizontal_dist = np.linalg.norm(np.array(mouth_points[0]) - np.array(mouth_points[6]))
-    return vertical_dist / horizontal_dist
-
+# 表情历史（用于稳定判断）
+emotion_history = []
 
 # 设置视频捕获
 cap = cv2.VideoCapture(0)
+
+# 初始化天气特效系统
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+weather_system = WeatherEffectSystem(width, height)
+
+# 在初始化时启用加速
+cv2.setUseOptimized(True)
+cv2.ocl.setUseOpenCL(True)
 
 # 显示调试信息开关
 de_show = True
@@ -94,8 +90,12 @@ while True:
     faces = detector(gray, 0)
 
     for face in faces:
+        # 只处理最大的人脸
+        face = max(faces, key=lambda rect: rect.width() * rect.height())
+
         # 关键点检测
         landmarks = predictor(gray, face)
+
         # 添加贴纸
         apply_sticker(frame, landmarks, current_sticker_index, sticker_list, scale_factors)
 
@@ -121,7 +121,7 @@ while True:
                     show_whiskers = False  # 关闭胡须特效
                     print("超时未微笑，已关闭猫咪胡须")
 
-        # 新增猫胡须特效（仅当某个条件满足时启用，例如按键切换）
+        # 猫胡须特效（仅当某个条件满足时启用，例如按键切换）
         if show_whiskers:  # show_whiskers 是一个布尔变量，可通过按键控制开关
             apply_whiskers(frame, landmarks, whiskers_img, scale_factor=2.3)
 
@@ -154,31 +154,77 @@ while True:
                         print(f"切换贴纸至索引 {current_sticker_index}")
             blink_counter = 0
 
+        # 表情特征提取
+        eyebrow_angle = calculate_eyebrow_angle(landmarks, side='both')
+        lip_angle = calculate_lip_corner_angle(landmarks)
+
+        # # 表情分类
+        emotion = classify_emotion(mar, avg_ear, eyebrow_angle, lip_angle)
+        emotion_history.append(emotion)
+        if len(emotion_history) > 10:
+            emotion_history.pop(0)
+
+        # 判断稳定表情（取最近10帧中出现最多的表情）
+        stable_emotion = max(set(emotion_history), key=emotion_history.count)
+
+        # 判断是否处于锁定期
+        if current_emotion_locked is None or (time.time() - lock_start_time) > LOCK_DURATION:
+            # 如果当前没有锁定 或者 锁定期已过
+            if stable_emotion != current_emotion_locked:
+                # 表情变化，进入锁定状态
+                current_emotion_locked = stable_emotion
+                lock_start_time = time.time()
+                # 设置天气效果
+                weather = emotion_classifier.get_weather_for_emotion(current_emotion_locked)
+                weather_system.set_weather(weather)
+        else:
+            # 锁定期间使用当前锁定的表情
+            weather = emotion_classifier.get_weather_for_emotion(current_emotion_locked)
+            weather_system.set_weather(weather)
+
         # 绘制调试信息
         if de_show:
 
-            # 绘制眼部关键点（共12个点）
+            # 绘制眼部关键点（左眼36-41，右眼42-47，共12个点）
             for point in left_eye_points + right_eye_points:
                 cv2.circle(frame, tuple(point), 2, (0, 255, 0), -1)  # 绿色小圆点
 
             # 绘制眼睛中心点
-            cv2.circle(frame, tuple(left_eye_center()), 3, (255, 0, 0), -1)  # 蓝色圆点
-            cv2.circle(frame, tuple(right_eye_center()), 3, (255, 0, 0), -1)
+            # cv2.circle(frame, tuple(left_eye_center(landmarks)), 3, (255, 0, 0), -1)  # 蓝色圆点
+            # cv2.circle(frame, tuple(right_eye_center(landmarks)), 3, (255, 0, 0), -1)
 
             # 绘制眼镜中心线（连接两眼中心）
-            cv2.line(frame, tuple(left_eye_center()), tuple(right_eye_center()), (0, 0, 255), 1)
+            # cv2.line(frame, tuple(left_eye_center(landmarks)), tuple(right_eye_center(landmarks)), (0, 0, 255), 1)
 
-            cv2.putText(frame, f"Faces: {len(faces)}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            # 绘制人脸数
+            cv2.putText(frame, f"Faces: {len(faces)}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
             #  绘制EAR
-            cv2.putText(frame, f"EAR: {avg_ear:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+            cv2.putText(frame, f"EAR: {avg_ear:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+            # 绘制眉毛关键点（左眉17-21，右眉22-26）
+            for i in range(17, 26):  # 包含17-26共10个点
+                point = (landmarks.part(i).x, landmarks.part(i).y)
+                cv2.circle(frame, point, 2, (255, 0, 0), -1)  # 使用蓝色圆点
 
             # 绘制嘴巴关键点
             for point in mouth_points:
                 cv2.circle(frame, tuple(point), 2, (255, 0, 255), -1)
-            #  绘制MAR
-            cv2.putText(frame, f"MAR: {mar:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
+            #  绘制MAR
+            cv2.putText(frame, f"MAR: {mar:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+            #  绘制表情信息
+            cv2.putText(frame, f"Emotion: {emotion}", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            cv2.putText(frame, f"Eyebrow: {eyebrow_angle:.4f}°", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            cv2.putText(frame, f"Lip Angle: {lip_angle:.4f}°", (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+            #  绘制天气信息
+            cv2.putText(frame, f"Weather: {weather_system.current_weather}", (10, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+    # 在应用特效前添加天气更新
+    weather_system.update()
+    frame = weather_system.apply_effects(frame)
     cv2.imshow('Face with Glasses', frame)
     # cv2.resizeWindow('Face with Glasses', 640, 480)  # 固定主窗口为640x480
 
