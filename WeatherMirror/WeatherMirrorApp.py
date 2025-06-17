@@ -104,7 +104,7 @@ def main():
     # 控制调用频率的变量
     last_check_time = 0
     expression_check_interval = 3  # 每3秒检测一次表情
-    current_expression = None  # 缓存上次检测到的结果
+    current_expression = '默认'  # 缓存上次检测到的结果
     
     while True:
         ret, frame = cap.read()
@@ -119,6 +119,7 @@ def main():
             last_check_time = current_time
         print(current_expression)
         
+        """
         if weather == 'rain':
             frame = rain_effect.add_effects(frame)
         elif weather == 'snow':
@@ -129,7 +130,19 @@ def main():
             frame = thunder_effect.add_effects(frame)
         else:  # 默认晴天
             frame = sunny_effect.add_effects(frame)
-        
+        """
+
+        if current_expression == '悲伤':
+            frame = rain_effect.add_effects(frame)
+        elif current_expression == '生气':
+            frame = snow_effect.add_effects(frame)
+        elif current_expression == '微笑':
+            frame = sunny_effect.add_effects(frame)
+        elif current_expression == '哭泣':
+            frame = thunder_effect.add_effects(frame)
+        else:  # 默认天气
+            frame = cloudy_effect.add_effects(frame)
+
         cv2.imshow('Weather Camera', cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         cv2.setWindowProperty('Weather Camera', cv2.WND_PROP_TOPMOST, 1)
         
