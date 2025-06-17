@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'try.ui'
+# Form implementation generated from reading ui file 'camera.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.9
 #
@@ -59,6 +59,9 @@ class Ui_widget(object):
         self.comboBox.addItem("")
         self.comboBox.addItem("")
         self.comboBox.addItem("")
+        self.qbutton = QtWidgets.QPushButton(widget)
+        self.qbutton.setGeometry(QtCore.QRect(960, 50, 121, 31))
+        self.qbutton.setObjectName("qbutton")
 
         self.retranslateUi(widget)
         QtCore.QMetaObject.connectSlotsByName(widget)
@@ -69,3 +72,4 @@ class Ui_widget(object):
         self.comboBox.setItemText(0, _translate("widget", "眼镜一"))
         self.comboBox.setItemText(1, _translate("widget", "眼镜二"))
         self.comboBox.setItemText(2, _translate("widget", "眼镜三"))
+        self.qbutton.setText(_translate("widget", "识别"))
