@@ -460,17 +460,40 @@ class CloudyEffects:
         self.cap = cap
         # self.cap = cv2.VideoCapture(0)
         print("****cloudy_init****")
-        # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-        # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
         self.h, self.w = CAMERA_HEIGHT, CAMERA_WIDTH
+        # 初始化云朵系统
+        self.cloud_img = cv2.imread('src/image/cloud_1.png', cv2.IMREAD_UNCHANGED)
+        if self.cloud_img is None:
+            raise ValueError("云朵图片加载失败")
+        self._preprocess_cloud()
+
+    def _preprocess_cloud(self):
+        """预处理云朵素材"""
+        target_width = self.w // 6
+        target_height = self.h // 4
+        self.cloud_img = cv2.resize(self.cloud_img, 
+                                (target_width, target_height),
+                                interpolation=cv2.INTER_LINEAR)
+        self.cloud_alpha = self.cloud_img[:, :, 3] / 255.0
+        self.cloud_rgb = cv2.cvtColor(self.cloud_img, cv2.COLOR_BGRA2BGR)
+
+    def _blend_cloud(self, frame, i):
+        """混合云层到画面"""
+        cloud_h, cloud_w = self.cloud_img.shape[:2]
+        y_start, x_start = 0, 0 + i * cloud_w
+        roi = frame[y_start:y_start+cloud_h, x_start:x_start+cloud_w]
+        
+        roi_float = roi.astype(float)
+        cloud_float = self.cloud_rgb.astype(float)
+        blended = (roi_float * (1 - self.cloud_alpha[..., np.newaxis]) + 
+                 cloud_float * self.cloud_alpha[..., np.newaxis])
+        frame[y_start:y_start+cloud_h, x_start:x_start+cloud_w] = blended.astype(np.uint8)
 
     def add_effects(self, frame):
-        """
-        ret, frame = self.cap.read()
-        if not ret:
-            return None
-        """
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        """添加多云特效"""
+
+        # 渲染云层
+        for i in range(6):
+            self._blend_cloud(frame, i)
 
         return frame

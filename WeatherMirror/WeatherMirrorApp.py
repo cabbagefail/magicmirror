@@ -32,13 +32,18 @@ def classify_expression(landmarks):
     mouth_right = np.array([lm[291].x, lm[291].y])
     mouth_top = np.array([lm[13].x, lm[13].y])
     mouth_bottom = np.array([lm[14].x, lm[14].y])
+    mouth_center = np.array([(mouth_left[0] + mouth_right[0]) / 2, (mouth_top[1] + mouth_bottom[1]) / 2])
     mouth_width = np.linalg.norm(mouth_right - mouth_left)
     mouth_open = np.linalg.norm(mouth_bottom - mouth_top)
+    # 嘴角垂直角度：负值表示嘴角下垂（悲伤）
+    mouth_slope = (mouth_left[1] + mouth_right[1]) / 2 - mouth_center[1]
 
+    """
     # 获取眉毛高度
-    brow_left = np.array([lm[70].x, lm[70].y])
-    eye_left_top = np.array([lm[159].x, lm[159].y])
-    brow_eye_diff = brow_left[1] - eye_left_top[1]
+    brow_inner = np.array([lm[70].x, lm[70].y])  # 左眉毛内侧
+    brow_outer = np.array([lm[105].x, lm[105].y])  # 左眉毛外侧
+    brow_slope = brow_outer[1] - brow_inner[1]  # 若为正值，表示内侧比外侧低（有可能皱眉）
+    """
 
     # 获取眼睛开合程度（判断哭泣）
     eye_top = np.array([lm[159].x, lm[159].y])
@@ -47,19 +52,19 @@ def classify_expression(landmarks):
 
     # 默认表情参数：mouth_open=0.0006 mouth_width=0.095 eye_open=0.029 brow_eye_diff=-0.041
     # print("mouth_width:" + str(mouth_width))# 生气参数：0.081
-    print("mouth_open:" + str(mouth_open) + " " + "eye_open:" + str(eye_open))# 哭泣参数：0.06 0.008
+    # print("mouth_open:" + str(mouth_open) + " " + "eye_open:" + str(eye_open))# 哭泣参数：0.06 0.008
     # print("mouth_open:" + str(mouth_open) + " " + "mouth_width:" + str(mouth_width))# 微笑参数：0.027 0.135
-    # print("brow_eye_diff" + str(brow_eye_diff))# 悲伤参数：
+    print("mouth_slope:" + str(mouth_slope) + " " + "eye_open:" + str(eye_open))# 悲伤参数：
 
     # 判断规则（可调整阈值）
     if mouth_width < 0.09:
         return "生气"
     elif mouth_open > 0.04 and eye_open < 0.012:
         return "哭泣"
+    elif eye_open < 0.015 and mouth_slope > 0.007:
+        return "悲伤"
     elif mouth_open > 0.02 and mouth_width > 0.13:
         return "微笑"
-    elif brow_eye_diff > 0.035:
-        return "轻度悲伤"
     else:
         return "默认"
     
@@ -69,8 +74,8 @@ def facial_expression(frame, face_mesh):
     if results.multi_face_landmarks:
         for face_landmarks in results.multi_face_landmarks:
             expression = classify_expression(face_landmarks.landmark)
-            print(expression)
-            
+            # print(expression)
+    print(expression)
     return expression
 
 # 入口函数
@@ -79,7 +84,7 @@ def main():
     city = "Shenzhen"
     # weather = get_weather(city)
     weather = 'thunderrain'
-    print(weather)
+    # print(weather)
 
     # 开启摄像头
     cap = cv2.VideoCapture(0)
@@ -104,7 +109,7 @@ def main():
     # 控制调用频率的变量
     last_check_time = 0
     expression_check_interval = 3  # 每3秒检测一次表情
-    current_expression = None  # 缓存上次检测到的结果
+    current_expression = '默认'  # 缓存上次检测到的结果
     
     while True:
         ret, frame = cap.read()
@@ -117,8 +122,9 @@ def main():
         if current_time - last_check_time >= expression_check_interval:
             current_expression = facial_expression(frame_raw, face_mesh)
             last_check_time = current_time
-        print(current_expression)
+        # print(current_expression)
         
+        """
         if weather == 'rain':
             frame = rain_effect.add_effects(frame)
         elif weather == 'snow':
@@ -129,7 +135,19 @@ def main():
             frame = thunder_effect.add_effects(frame)
         else:  # 默认晴天
             frame = sunny_effect.add_effects(frame)
-        
+        """
+
+        if current_expression == '悲伤':
+            frame = rain_effect.add_effects(frame)
+        elif current_expression == '生气':
+            frame = snow_effect.add_effects(frame)
+        elif current_expression == '微笑':
+            frame = sunny_effect.add_effects(frame)
+        elif current_expression == '哭泣':
+            frame = thunder_effect.add_effects(frame)
+        else:  # 默认天气
+            frame = cloudy_effect.add_effects(frame)
+
         cv2.imshow('Weather Camera', cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         cv2.setWindowProperty('Weather Camera', cv2.WND_PROP_TOPMOST, 1)
         
