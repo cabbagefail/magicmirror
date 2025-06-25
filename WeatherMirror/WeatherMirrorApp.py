@@ -38,13 +38,6 @@ def classify_expression(landmarks):
     # 嘴角垂直角度：负值表示嘴角下垂（悲伤）
     mouth_slope = (mouth_left[1] + mouth_right[1]) / 2 - mouth_center[1]
 
-    """
-    # 获取眉毛高度
-    brow_inner = np.array([lm[70].x, lm[70].y])  # 左眉毛内侧
-    brow_outer = np.array([lm[105].x, lm[105].y])  # 左眉毛外侧
-    brow_slope = brow_outer[1] - brow_inner[1]  # 若为正值，表示内侧比外侧低（有可能皱眉）
-    """
-
     # 获取眼睛开合程度（判断哭泣）
     eye_top = np.array([lm[159].x, lm[159].y])
     eye_bottom = np.array([lm[145].x, lm[145].y])
